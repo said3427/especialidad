@@ -1,0 +1,156 @@
+---
+title: "Tarea 2"
+subtitle: "Matrimonios"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+
+library(tidyverse)
+library(foreign)
+library("mxmaps")
+```
+
+## Lectura de Archivos
+
+```{r,include=TRUE,}
+CATEMLMA17<-as_tibble(read.dbf("CATEMLMA17.dbf",as.is = T))
+matrinomios<-as_tibble(read.dbf("MATRI17.DBF",as.is = T))
+```
+
+
+
+## Matrimonios en México
+
+- El total de matrimonios en el 2017 en México fue de `r nrow(matrinomios)`
+
+```{r,echo=FALSE}
+MatrimoniosEntidad<-matrinomios %>%
+  group_by(ENT_REGIS) %>%
+  summarize(Matrimonios = n()) %>%
+  inner_join(
+    subset(CATEMLMA17,
+           CVE_MUN=="000")[,-2:-3],
+             by=c("ENT_REGIS"="CVE_ENT")) 
+
+
+df_mxstate$value <- MatrimoniosEntidad$Matrimonios
+mxstate_choropleth(df_mxstate,
+                   title = "Matrimonios por Entidad",
+                   num_colors = 1) 
+```
+
+
+## Matrimonios por Mes
+
+```{r,echo=FALSE}
+MatrimoniosMes<-matrinomios %>%
+  group_by(MES_REGIS) %>%
+  summarize(Matrimonios = n()) 
+
+MatrimoniosMes$Mes<-c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
+
+ggplot(MatrimoniosMes,
+       aes(x=reorder(Mes,MES_REGIS),y=Matrimonios))+
+  geom_point(colour = "red")+
+  geom_line(aes(MES_REGIS))+
+  theme_bw()+ 
+  labs(title ="Matrimonios por Mes",
+       x = "Mes",
+       y= "Número de Matrimonios")+ 
+  theme(axis.text.x = element_text(angle=45, hjust = 1))
+  
+```
+## Matrimonios por Mes por Entidad
+```{r,echo=FALSE}
+Mes<-c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
+
+MatrimoniosMesEntidad<-matrinomios %>%
+  group_by(MES_REGIS,ENT_REGIS) %>%
+  summarize(Matrimonios = n()) %>%
+  mutate(Mes=Mes[MES_REGIS])
+
+
+ggplot(MatrimoniosMesEntidad,
+       aes(x=reorder(Mes,MES_REGIS),y=Matrimonios,color=ENT_REGIS))+
+  geom_point(colour = "red")+
+  geom_line(aes(MES_REGIS))+
+  theme_bw()+ 
+  labs(title ="Matrimonios por Mes",
+       x = "Mes",
+       y= "Número de Matrimonios")+ 
+  theme(axis.text.x = element_text(
+    angle=45, hjust = 1),
+        legend.position = "none")
+  
+```
+
+## Matrimonios por Condición
+
+```{r}
+
+Condicion<-c("Hombre-Mujer",
+             "Mismo sexo hombres",
+             "Mismo sexo mujeres")
+
+MatrimoniosCondicion<-matrinomios %>% group_by(TIPO_CON)%>%summarise(Conteo=n()) %>%
+  mutate(Condicion=Condicion[TIPO_CON])
+
+ggplot(MatrimoniosCondicion,
+       aes(x=Condicion,y=Conteo))+
+  geom_bar(stat = "identity")+
+  theme_bw()+ 
+  labs(title ="Matrimonios por Condición",
+       x = "Condición",
+       y= "Número de Matrimonios")+ 
+  theme(axis.text.x = element_text(
+    angle=45, hjust = 1),
+        legend.position = "none")
+```
+```{r}
+MatrimoniosCondicionEntidad<-matrinomios %>% group_by(GENERO,ENT_REGIS)%>%summarise(Conteo=n()) %>%
+  mutate(freq=Conteo/sum(Conteo))
+
+```
+
+
+
+
+## Diferencia de edad entre contrayentes por entidad federativa
+### Dato Real
+
+```{r}
+MatrimoniosDiferenciaEdad <- matrinomios %>% group_by(ENT_REGIS)%>%mutate(DiferenciaEdad= EDAD_CON1-EDAD_CON2)
+
+ggplot(MatrimoniosDiferenciaEdad,aes(x=DiferenciaEdad,fill=ENT_REGIS)) +
+  geom_density()
+```
+
+```{r}
+MediaDiferenciaEdad<-MatrimoniosDiferenciaEdad%>%summarise(MediaDiferencia=mean(DiferenciaEdad))
+
+library("mxmaps")
+
+df_mxstate$value <- MediaDiferenciaEdad$MediaDiferencia
+mxstate_choropleth(df_mxstate,
+                   title = "Media de la Diferencia de Edad por Entidad",
+                   num_colors = 1) 
+
+```
+### Estimación puntual
+
+### Estimaciones 95% confianza
+
+
+## Actividad laboral contrayentes
+Actividad laboral contrayentes
+
+## Actividad laboral contrayentes por entidad federativa
+
+## Escolaridad contrayentes
+
+## Escolaridad contrayentes por entidad federativa
+
