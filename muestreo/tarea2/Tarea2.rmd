@@ -12,23 +12,25 @@ knitr::opts_chunk$set(echo = TRUE,
 library(tidyverse)
 library(foreign)
 library("mxmaps")
+library(stringr)
+
 ```
 
 ## Lectura de Archivos
 
 ```{r,include=TRUE,}
 CATEMLMA17<-as_tibble(read.dbf("CATEMLMA17.dbf",as.is = T))
-matrinomios<-as_tibble(read.dbf("MATRI17.DBF",as.is = T))
+matrimonios<-as_tibble(read.dbf("MATRI17.DBF",as.is = T))
 ```
 
 
 
 ## Matrimonios en México
 
-- El total de matrimonios en el 2017 en México fue de `r nrow(matrinomios)`
+- El total de matrimonios en el 2017 en México fue de `r nrow(matrimonios)`
 
 ```{r,echo=FALSE}
-MatrimoniosEntidad<-matrinomios %>%
+MatrimoniosEntidad<-matrimonios %>%
   group_by(ENT_REGIS) %>%
   summarize(Matrimonios = n()) %>%
   inner_join(
@@ -47,7 +49,7 @@ mxstate_choropleth(df_mxstate,
 ## Matrimonios por Mes
 
 ```{r,echo=FALSE}
-MatrimoniosMes<-matrinomios %>%
+MatrimoniosMes<-matrimonios %>%
   group_by(MES_REGIS) %>%
   summarize(Matrimonios = n()) 
 
@@ -68,7 +70,7 @@ ggplot(MatrimoniosMes,
 ```{r,echo=FALSE}
 Mes<-c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
 
-MatrimoniosMesEntidad<-matrinomios %>%
+MatrimoniosMesEntidad<-matrimonios %>%
   group_by(MES_REGIS,ENT_REGIS) %>%
   summarize(Matrimonios = n()) %>%
   mutate(Mes=Mes[MES_REGIS])
@@ -96,13 +98,13 @@ Condicion<-c("Hombre-Mujer",
              "Mismo sexo hombres",
              "Mismo sexo mujeres")
 
-MatrimoniosCondicion<-matrinomios %>% group_by(TIPO_CON)%>%summarise(Conteo=n()) %>%
+MatrimoniosCondicion<-matrimonios %>% group_by(TIPO_CON)%>%summarise(Conteo=n()) %>%
   mutate(Condicion=Condicion[TIPO_CON])
 
 ggplot(MatrimoniosCondicion,
        aes(x=Condicion,y=Conteo))+
   geom_bar(stat = "identity")+
-  theme_bw()+ 
+  theme_minimal()+ 
   labs(title ="Matrimonios por Condición",
        x = "Condición",
        y= "Número de Matrimonios")+ 
@@ -111,7 +113,7 @@ ggplot(MatrimoniosCondicion,
         legend.position = "none")
 ```
 ```{r}
-MatrimoniosCondicionEntidad<-matrinomios %>% group_by(GENERO,ENT_REGIS)%>%summarise(Conteo=n()) %>%
+MatrimoniosCondicionEntidad<-matrimonios %>% group_by(GENERO,ENT_REGIS)%>%summarise(Conteo=n()) %>%
   mutate(freq=Conteo/sum(Conteo))
 
 ```
@@ -123,34 +125,181 @@ MatrimoniosCondicionEntidad<-matrinomios %>% group_by(GENERO,ENT_REGIS)%>%summar
 ### Dato Real
 
 ```{r}
-MatrimoniosDiferenciaEdad <- matrinomios %>% group_by(ENT_REGIS)%>%mutate(DiferenciaEdad= EDAD_CON1-EDAD_CON2)
+MatrimoniosDiferenciaEdad <- matrimonios %>% 
+  group_by(ENT_REGIS) %>%
+  mutate(DiferenciaEdad= EDAD_CON1-EDAD_CON2)
 
-ggplot(MatrimoniosDiferenciaEdad,aes(x=DiferenciaEdad,fill=ENT_REGIS)) +
+ggplot(MatrimoniosDiferenciaEdad)+
+  aes(x=(DiferenciaEdad),fill=ENT_REGIS) +
   geom_density()
 ```
 
 ```{r}
-MediaDiferenciaEdad<-MatrimoniosDiferenciaEdad%>%summarise(MediaDiferencia=mean(DiferenciaEdad))
+MediaDiferenciaEdad<-MatrimoniosDiferenciaEdad %>% 
+  summarise(MediaDiferencia=mean(DiferenciaEdad)) 
+```
 
-library("mxmaps")
-
+```{r, GraficoDiferenciaEdad}
 df_mxstate$value <- MediaDiferenciaEdad$MediaDiferencia
 mxstate_choropleth(df_mxstate,
                    title = "Media de la Diferencia de Edad por Entidad",
                    num_colors = 1) 
-
 ```
+
 ### Estimación puntual
 
 ### Estimaciones 95% confianza
 
 
 ## Actividad laboral contrayentes
-Actividad laboral contrayentes
+### Dato real
+
+```{r}
+ActividadLaboral<-list()
+ActividadLaboral[[1]]= "Funcionarios, directores y jefes"
+ActividadLaboral[[2]]= "Profesionistas y técnicos"
+ActividadLaboral[[3]]= "Trabajadores auxiliares en actividades administrativas"
+ActividadLaboral[[4]]= "Comerciantes, empleados en ventas y agentes de ventas"
+ActividadLaboral[[5]]= "Trabajadores en servicios personales y vigilancia"
+ActividadLaboral[[6]]= "Trabajadores en actividades agrícolas, ganaderas, forestales, caza y pesca"
+ActividadLaboral[[7]]= "Trabajadores artesanales"
+ActividadLaboral[[8]]= "Operadores de maquinaria industrial, ensambladores, choferes y conductores de transporte"
+ActividadLaboral[[9]]= "Trabajadores en actividades elementales y de apoyo"
+ActividadLaboral[[10]]= "Busca trabajo"
+ActividadLaboral[[11]]= "No trabaja"
+ActividadLaboral[[97]]= "No especificada"
+ActividadLaboral[[98]]= "No especificada"
+ActividadLaboral[[99]]= "No especificada"
+
+matrimonios$ActividadLaboral1<-unlist(ActividadLaboral[matrimonios$OCUP_CON1])
+matrimonios$ActividadLaboral2<-unlist(ActividadLaboral[matrimonios$OCUP_CON2])
+
+contrayente1<-matrimonios[,c("SEXO_CON1","ActividadLaboral1","ENTRH_CON1")]
+colnames(contrayente1)<-c("SEXO","ActividadLaboral","Entidad")
+contrayente2<-matrimonios[,c("SEXO_CON2","ActividadLaboral2","ENTRH_CON2")]
+colnames(contrayente2)<-c("SEXO","ActividadLaboral","Entidad")
+
+Actividad<-rbind(contrayente1,contrayente2)
+```
+
+
+```{r}
+ActividadFrac<-Actividad%>%group_by(ActividadLaboral)%>%summarise(Porcentaje=100*n()/nrow(Actividad))
+```
+
+```{r}
+ggplot(ActividadFrac,aes(x=reorder(ActividadLaboral,-Porcentaje),y=Porcentaje))+
+  geom_bar(stat = "identity")+
+  theme_minimal()+ 
+  labs(title ="Porcentaje de Actividades económicas",
+       x = "Actividad",
+       y= "Porcentaje")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+```
+
+
+### Estimación puntual
+
+### Estimaciones 95% confianza
 
 ## Actividad laboral contrayentes por entidad federativa
+### Dato real
+
+```{r}
+ActividadEnt<-Actividad%>%group_by(Entidad,ActividadLaboral)%>%summarise(Elementos=n()) %>% group_by(Entidad)%>%mutate(Porcentaje=100*Elementos/sum(Elementos))
+```
+
+```{r}
+ggplot(ActividadEnt,aes(x=reorder(ActividadLaboral,-Porcentaje),y=Porcentaje,color=Entidad))+
+  geom_bar(stat = "identity",position = "dodge")+
+  theme_minimal()+ 
+  labs(title ="Porcentaje de Actividades económicas",
+       x = "Actividad",
+       y= "Porcentaje")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+```
+
+### Estimación puntual
+
+### Estimaciones 95% confianza
 
 ## Escolaridad contrayentes
+```{r}
+Escolaridad<-list()
+Escolaridad[[1]]="Sin escolaridad"
+Escolaridad[[2]]="De 1 a 3 años de primaria"
+Escolaridad[[3]]="De 4 a 5 años de primaria"
+Escolaridad[[4]]="Primaria completa"
+Escolaridad[[5]]="Secundaria o equivalente"
+Escolaridad[[6]]="Preparatoria o equivalente"
+Escolaridad[[7]]="Profesional"
+Escolaridad[[8]]="Otra"
+Escolaridad[[9]]="No especificada"
+
+matrimonios$Escolaridad1<-unlist(Escolaridad[matrimonios$ESCOL_CON1])
+matrimonios$Escolaridad2<-unlist(Escolaridad[matrimonios$ESCOL_CON2])
+
+contrayente1<-matrimonios[,c("SEXO_CON1","Escolaridad1","ENTRH_CON1")]
+colnames(contrayente1)<-c("SEXO","Escolaridad","Entidad")
+contrayente2<-matrimonios[,c("SEXO_CON2","Escolaridad2","ENTRH_CON2")]
+colnames(contrayente2)<-c("SEXO","Escolaridad","Entidad")
+
+EscolaridadContrayentes<-rbind(contrayente1,contrayente2)
+```
+
+
+### Dato real
+
+```{r}
+EscolaridadFrac<-EscolaridadContrayentes%>%
+  group_by(Escolaridad)%>%
+  summarise(Porcentaje=100*n()/nrow(EscolaridadContrayentes))
+```
+
+```{r}
+ggplot(EscolaridadFrac,aes(x=reorder(Escolaridad,-Porcentaje),y=Porcentaje))+
+  geom_bar(stat = "identity")+
+  theme_minimal()+ 
+  labs(title ="Porcentaje del nivel de escolaridad",
+       x = "Nivel de escolaridad",
+       y= "Porcentaje")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+```
+
+
+
+### Estimación puntual
+
+### Estimaciones 95% confianza
 
 ## Escolaridad contrayentes por entidad federativa
+### Dato real
+```{r}
+EscolaridadEnt<-EscolaridadContrayentes%>%group_by(Entidad,Escolaridad)%>%summarise(Elementos=n()) %>% group_by(Entidad)%>%mutate(Porcentaje=100*Elementos/sum(Elementos))
+```
 
+```{r}
+ggplot(EscolaridadEnt,aes(x=reorder(Escolaridad,-Porcentaje),y=Porcentaje,color=Entidad))+
+  geom_bar(stat = "identity",position = "dodge")+
+  theme_minimal()+ 
+  labs(title ="Porcentaje de nivel de Escolaridad por Estado",
+       x = "Escolaridad",
+       y= "Porcentaje")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+```
+
+### Estimación puntual
+
+### Estimaciones 95% confianza
