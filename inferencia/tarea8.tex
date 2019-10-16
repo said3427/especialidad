@@ -1,0 +1,61 @@
+\documentclass[11pt]{article}
+
+\usepackage{fancyhdr}
+\usepackage{enumerate}
+\usepackage{titlesec}
+\usepackage{titletoc}
+\usepackage[spanish]{babel}
+\usepackage{latexsym}
+\usepackage[utf8]{inputenc}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[dvips]{graphicx}
+\begin{document}
+\section*{Ejercicio 6}
+Mostrar que la distribución \(N(\mu, \tau)\) pertenece a la familia exponencial. A partir de este resultado,
+encontrar un estadistico suficiente para \((\mu, \tau)\).
+\subsection*{Respuesta}
+Una distribución de probabilidad pertenece a la familia exponencial si su función de masa de probabilidad se puede escribir como:
+
+\begin{equation}
+f_{X}(x ; \theta)=h(x) c(\theta) e^{\sum_{n=1}^{k} \omega_{i}(\theta) t_{i}(x)} 
+\end{equation}
+
+Donde, \(h(x) \text{ y }  t(x)\) son funciones reales de x y no depende de \(\theta,\) mientras que \(h(\theta) \text{ y } c(\theta)\) son funciones que dependen de \(\theta\).
+
+
+$$
+f_{X}(x; \mu ,\tau)=\frac{1}{\sqrt{2 \pi \tau}} e^{-\frac{1}{2 \tau}(x-\mu)^{2}} \quad x \in \mathbb{R}
+$$
+
+$$
+f_{X}(x; \mu ,\tau)=\frac{1}{\sqrt{2 \pi \tau}} e^{-\frac{1}{2 \tau}(x^2-2\mu x +\mu^2)} \quad x \in \mathbb{R}
+$$
+
+$$
+f_{X}(x; \mu ,\tau)=\frac{1}{\sqrt{2 \pi \tau}} e^{-\frac{\mu^2}{2 \tau}} e^{-\frac{1}{2 \tau}(x^2-2\mu x )} \quad x \in \mathbb{R}
+$$
+
+$$
+f_{X}(x; \mu ,\tau)=\frac{1}{\sqrt{2 \pi \tau}} e^{-\frac{\mu^2}{2 \tau}} e^{-\frac{x^2}{2 \tau}+\frac{\mu x}{{\tau}} } \quad x \in \mathbb{R}
+$$
+
+Se puede reescribir la ecuación 1 de la siguiente forma:
+$$c(\theta)=\frac{1}{\sqrt{2 \pi \tau}} e^{-\frac{\mu^2}{2 \tau}} \text{;} h(x) = 1$$
+
+$$w_{1} = -\frac{\mu}{\tau} ;  t_{1}= x$$
+
+$$ w_{2} = -\frac{1}{2 \tau} ;  t_{2}= x^2$$
+
+Se comprueba que la distribución \(N(\mu, \tau)\) pertenece a la familia exponencial.
+\subsubsection*{Estadístico suficiente}
+
+Por lo tanto el estadístico suficiente para \(\theta (\mu, \tau)\) 
+
+$$
+T(X)= \begin{pmatrix} \sum_{1}^n X \\\sum_{1}^n X^2 \end{pmatrix}
+$$
+
+\end{document}
