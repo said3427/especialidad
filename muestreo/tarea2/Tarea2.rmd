@@ -1,7 +1,7 @@
 ---
 title: "Tarea 2"
 subtitle: "Matrimonios"
-output: ioslides_presentation
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -9,191 +9,92 @@ knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
 
-library(tidyverse)
-library(foreign)
+if(!require("devtools")){
+  install.packages("devtools")
+}
+
+devtools::install_github("diegovalle/mxmaps")
+devtools::install_github("AndriSignorell/DescTools")
+
 library("mxmaps")
-library(stringr)
-
+library("foreign")
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("DescTools")
 ```
 
-## Lectura de Archivos
+```{r lecturaArchivos}
+entidades <- read.dbf("CATEMLMA17.dbf") %>% tbl_df()
+estados <- entidades %>% filter(CVE_MUN=="000") %>% select(CVE_ENT,NOM_LOC) %>% rename(NOM_EDO=NOM_LOC)
+localidades <- entidades %>% filter(CVE_MUN!="000" & CVE_LOC!="0000") %>% select(CVE_ENT,CVE_MUN,CVE_LOC,NOM_LOC)
 
-```{r,include=TRUE,}
-CATEMLMA17<-as_tibble(read.dbf("CATEMLMA17.dbf",as.is = T))
-matrimonios<-as_tibble(read.dbf("MATRI17.DBF",as.is = T))
+
+matrimonios<-read.dbf("MATRI17.DBF",as.is = T) %>%
+  as_tibble()%>%
+  left_join(estados, 
+            by = c("ENT_REGIS" = "CVE_ENT"))  %>%
+  left_join(localidades, 
+            by = c("ENT_REGIS" = "CVE_ENT", 
+                   "MUN_REGIS" = "CVE_MUN",
+                   "LOC_REGIS" = "CVE_LOC")) 
 ```
-
-
-
-## Matrimonios en México
-
-- El total de matrimonios en el 2017 en México fue de `r nrow(matrimonios)`
-
-```{r,echo=FALSE}
-MatrimoniosEntidad<-matrimonios %>%
-  group_by(ENT_REGIS) %>%
-  summarize(Matrimonios = n()) %>%
-  inner_join(
-    subset(CATEMLMA17,
-           CVE_MUN=="000")[,-2:-3],
-             by=c("ENT_REGIS"="CVE_ENT")) 
-
-
-df_mxstate$value <- MatrimoniosEntidad$Matrimonios
-mxstate_choropleth(df_mxstate,
-                   title = "Matrimonios por Entidad",
-                   num_colors = 1) 
-```
-
-
-## Matrimonios por Mes
-
-```{r,echo=FALSE}
-MatrimoniosMes<-matrimonios %>%
-  group_by(MES_REGIS) %>%
-  summarize(Matrimonios = n()) 
-
-MatrimoniosMes$Mes<-c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
-
-ggplot(MatrimoniosMes,
-       aes(x=reorder(Mes,MES_REGIS),y=Matrimonios))+
-  geom_point(colour = "red")+
-  geom_line(aes(MES_REGIS))+
-  theme_bw()+ 
-  labs(title ="Matrimonios por Mes",
-       x = "Mes",
-       y= "Número de Matrimonios")+ 
-  theme(axis.text.x = element_text(angle=45, hjust = 1))
-  
-```
-## Matrimonios por Mes por Entidad
-```{r,echo=FALSE}
-Mes<-c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre")
-
-MatrimoniosMesEntidad<-matrimonios %>%
-  group_by(MES_REGIS,ENT_REGIS) %>%
-  summarize(Matrimonios = n()) %>%
-  mutate(Mes=Mes[MES_REGIS])
-
-
-ggplot(MatrimoniosMesEntidad,
-       aes(x=reorder(Mes,MES_REGIS),y=Matrimonios,color=ENT_REGIS))+
-  geom_point(colour = "red")+
-  geom_line(aes(MES_REGIS))+
-  theme_bw()+ 
-  labs(title ="Matrimonios por Mes",
-       x = "Mes",
-       y= "Número de Matrimonios")+ 
-  theme(axis.text.x = element_text(
-    angle=45, hjust = 1),
-        legend.position = "none")
-  
-```
-
-## Matrimonios por Condición
-
-```{r}
-
-Condicion<-c("Hombre-Mujer",
-             "Mismo sexo hombres",
-             "Mismo sexo mujeres")
-
-MatrimoniosCondicion<-matrimonios %>% group_by(TIPO_CON)%>%summarise(Conteo=n()) %>%
-  mutate(Condicion=Condicion[TIPO_CON])
-
-ggplot(MatrimoniosCondicion,
-       aes(x=Condicion,y=Conteo))+
-  geom_bar(stat = "identity")+
-  theme_minimal()+ 
-  labs(title ="Matrimonios por Condición",
-       x = "Condición",
-       y= "Número de Matrimonios")+ 
-  theme(axis.text.x = element_text(
-    angle=45, hjust = 1),
-        legend.position = "none")
-```
-```{r}
-MatrimoniosCondicionEntidad<-matrimonios %>% group_by(GENERO,ENT_REGIS)%>%summarise(Conteo=n()) %>%
-  mutate(freq=Conteo/sum(Conteo))
-
-```
-
-
-
-
-## Diferencia de edad entre contrayentes por entidad federativa
-### Dato Real
-
-```{r}
-MatrimoniosDiferenciaEdad <- matrimonios %>% 
-  group_by(ENT_REGIS) %>%
-  mutate(DiferenciaEdad= EDAD_CON1-EDAD_CON2)
-
-ggplot(MatrimoniosDiferenciaEdad)+
-  aes(x=(DiferenciaEdad),fill=ENT_REGIS) +
-  geom_density()
-```
-
-```{r}
-MediaDiferenciaEdad<-MatrimoniosDiferenciaEdad %>% 
-  summarise(MediaDiferencia=mean(DiferenciaEdad)) 
-```
-
-```{r, GraficoDiferenciaEdad}
-df_mxstate$value <- MediaDiferenciaEdad$MediaDiferencia
-mxstate_choropleth(df_mxstate,
-                   title = "Media de la Diferencia de Edad por Entidad",
-                   num_colors = 1) 
-```
-
-### Estimación puntual
-
-### Estimaciones 95% confianza
 
 
 ## Actividad laboral contrayentes
-### Dato real
 
-```{r}
-ActividadLaboral<-list()
-ActividadLaboral[[1]]= "Funcionarios, directores y jefes"
-ActividadLaboral[[2]]= "Profesionistas y técnicos"
-ActividadLaboral[[3]]= "Trabajadores auxiliares en actividades administrativas"
-ActividadLaboral[[4]]= "Comerciantes, empleados en ventas y agentes de ventas"
-ActividadLaboral[[5]]= "Trabajadores en servicios personales y vigilancia"
-ActividadLaboral[[6]]= "Trabajadores en actividades agrícolas, ganaderas, forestales, caza y pesca"
-ActividadLaboral[[7]]= "Trabajadores artesanales"
-ActividadLaboral[[8]]= "Operadores de maquinaria industrial, ensambladores, choferes y conductores de transporte"
-ActividadLaboral[[9]]= "Trabajadores en actividades elementales y de apoyo"
-ActividadLaboral[[10]]= "Busca trabajo"
-ActividadLaboral[[11]]= "No trabaja"
-ActividadLaboral[[97]]= "No especificada"
-ActividadLaboral[[98]]= "No especificada"
-ActividadLaboral[[99]]= "No especificada"
 
-matrimonios$ActividadLaboral1<-unlist(ActividadLaboral[matrimonios$OCUP_CON1])
-matrimonios$ActividadLaboral2<-unlist(ActividadLaboral[matrimonios$OCUP_CON2])
+```{r ActividadLaboral}
+set.seed(0311)
 
-contrayente1<-matrimonios[,c("SEXO_CON1","ActividadLaboral1","ENTRH_CON1")]
-colnames(contrayente1)<-c("SEXO","ActividadLaboral","Entidad")
-contrayente2<-matrimonios[,c("SEXO_CON2","ActividadLaboral2","ENTRH_CON2")]
-colnames(contrayente2)<-c("SEXO","ActividadLaboral","Entidad")
+muestra <- matrimonios %>%
+  sample_n(
+    ceiling(
+      0.25*length(matrimonios$MUN_REGIS)))
 
-Actividad<-rbind(contrayente1,contrayente2)
+ActividadLaboral <- matrimonios %>% 
+  mutate(ACTIVIDAD_PAREJA = case_when(
+    CONACTCON1 == 1 & CONACTCON2 == 1 ~ "Trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 1 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 1 & CONACTCON2 == 2 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 2 ~ "No trabaja-No trabaja",
+    TRUE ~ "Otro")) %>%
+  group_by(ACTIVIDAD_PAREJA) %>%
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(matrimonios))
+
+ActividadLaboral <- cbind(
+  ActividadLaboral,
+  sum(ActividadLaboral$Conteo)*MultinomCI(ActividadLaboral$Conteo,
+                                          conf.level = 0.95))
+  
+
+MuestraActividadLaboral<-muestra %>% 
+  mutate(ACTIVIDAD_PAREJA = case_when(
+    CONACTCON1 == 1 & CONACTCON2 == 1 ~ "Trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 1 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 1 & CONACTCON2 == 2 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 2 ~ "No trabaja-No trabaja",
+    TRUE ~ "Otro")) %>%
+  group_by(ACTIVIDAD_PAREJA) %>%
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(muestra))
+
+MuestraActividadLaboral <- cbind(
+  MuestraActividadLaboral,
+  sum(MuestraActividadLaboral$Conteo)*MultinomCI(MuestraActividadLaboral$Conteo,
+                                          conf.level = 0.95))
 ```
 
-
-```{r}
-ActividadFrac<-Actividad%>%group_by(ActividadLaboral)%>%summarise(Porcentaje=100*n()/nrow(Actividad))
-```
-
-```{r}
-ggplot(ActividadFrac,aes(x=reorder(ActividadLaboral,-Porcentaje),y=Porcentaje))+
-  geom_bar(stat = "identity")+
-  theme_minimal()+ 
-  labs(title ="Porcentaje de Actividades económicas",
+```{r ActividadLaboral-Graficas}
+ggplot(ActividadLaboral,
+       aes(x=reorder(ACTIVIDAD_PAREJA,-Proporción),
+           y=Proporción)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() + 
+  labs(title ="Proporción de actividades económicas de la pareja contrayente",
        x = "Actividad",
-       y= "Porcentaje")+ 
+       y= "Proporción")+ 
   theme(axis.text=element_text(size=8),
         axis.text.x = element_text(
     angle=90, hjust = 1),
@@ -201,105 +102,503 @@ ggplot(ActividadFrac,aes(x=reorder(ActividadLaboral,-Porcentaje),y=Porcentaje))+
 ```
 
 
-### Estimación puntual
+```{r ActividadLaboralMuestra-Graficas}
+ggplot(MuestraActividadLaboral,
+       aes(x=reorder(ACTIVIDAD_PAREJA,-Proporción),
+           y=Proporción)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() + 
+  labs(title ="Proporción de actividades económicas de la pareja contrayente",
+       x = "Actividad",
+       y= "Proporción")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+```
 
-### Estimaciones 95% confianza
+Para estimar el total de matrimonios por actividad económica de los contrayentes se utilizó el total de m.a.s.
+ 
+$$ N_0 = N * \hat{P} $$
+donde $N_0 = $ total de la población a estimar; $ N = $ Total de la población y $ P = $ Proporción estimada.
+ 
+y la varianza se obtiene a partir de
+ 
+$$ V(N_0) = N^2  \left(1 - \frac{n}{N} \right)\frac{\hat{P}(1-\hat{P})}{n-1}$$
+
+
+```{r ActividadLaboral-Intervalo-Confianza}
+ggplot(ActividadLaboral) +
+  geom_bar(aes(x = reorder(ACTIVIDAD_PAREJA,-est), y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=ACTIVIDAD_PAREJA, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=ACTIVIDAD_PAREJA, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Actividad Laboral de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por actividad laboral (miles)") 
+```
+ 
 
 ## Actividad laboral contrayentes por entidad federativa
-### Dato real
 
-```{r}
-ActividadEnt<-Actividad%>%group_by(Entidad,ActividadLaboral)%>%summarise(Elementos=n()) %>% group_by(Entidad)%>%mutate(Porcentaje=100*Elementos/sum(Elementos))
+```{r ActividadLaboralEntidad}
+
+ActividadLaboralEntidad <- matrimonios %>% 
+  mutate(ACTIVIDAD_PAREJA = case_when(
+    CONACTCON1 == 1 & CONACTCON2 == 1 ~ "Trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 1 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 1 & CONACTCON2 == 2 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 2 ~ "No trabaja-No trabaja",
+    TRUE ~ "Otro")) %>%
+  group_by(NOM_EDO,ACTIVIDAD_PAREJA) %>%
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(matrimonios))
+
+EstimacionesEntidades<-as_tibble(do.call(rbind,ActividadLaboralEntidad %>% group_by(NOM_EDO) %>%group_map(~sum(.x$Conteo)*MultinomCI(.x$Conteo,conf.level = 0.95))))
+
+colnames(EstimacionesEntidades)<-c("est", "lwr.ci","upr.ci")
+
+
+ActividadLaboralEntidad <- bind_cols(
+  ActividadLaboralEntidad,
+  EstimacionesEntidades
+  )
+
+
+MuestraActividadLaboralEntidad<-muestra %>% 
+  mutate(ACTIVIDAD_PAREJA = case_when(
+    CONACTCON1 == 1 & CONACTCON2 == 1 ~ "Trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 1 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 1 & CONACTCON2 == 2 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 2 ~ "No trabaja-No trabaja",
+    TRUE ~ "Otro")) %>%
+  group_by(NOM_EDO,ACTIVIDAD_PAREJA) %>%
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(muestra))
+
+MuestraEstimacionesEntidades<-as_tibble(
+  do.call(rbind,
+          MuestraActividadLaboralEntidad %>% 
+            group_by(NOM_EDO) %>%
+            group_map(
+              ~sum(.x$Conteo)*MultinomCI(
+                .x$Conteo,conf.level = 0.95))))
+
+colnames(MuestraEstimacionesEntidades)<-c("est", "lwr.ci","upr.ci")
+
+
+MuestraActividadLaboralEntidad <- bind_cols(
+  MuestraActividadLaboralEntidad,
+  MuestraEstimacionesEntidades
+  )
+
 ```
 
-```{r}
-ggplot(ActividadEnt,aes(x=reorder(ActividadLaboral,-Porcentaje),y=Porcentaje,color=Entidad))+
-  geom_bar(stat = "identity",position = "dodge")+
-  theme_minimal()+ 
-  labs(title ="Porcentaje de Actividades económicas",
+```{r ActividadLaboralEntidad-Graficas}
+ggplot(ActividadLaboralEntidad,
+       aes(x=reorder(ACTIVIDAD_PAREJA,-Proporción),
+           y=Proporción,fill=NOM_EDO)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() + 
+  labs(title ="Proporcion de actividades económicas de la pareja contrayente",
        x = "Actividad",
-       y= "Porcentaje")+ 
+       y= "Proporción")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1),
+        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+
+ggplot(ActividadLaboralEntidad) +
+  geom_bar(aes(x = NOM_EDO, y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=NOM_EDO, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=NOM_EDO, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Actividad Laboral de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por actividad laboral (miles)")  +facet_grid(ACTIVIDAD_PAREJA~.,scales = "free_y")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1))
+
+```
+
+
+
+```{r ActividadLaboralEntidadMuestra-Graficas}
+ggplot(MuestraActividadLaboralEntidad) +
+  geom_bar(aes(x = NOM_EDO, y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=NOM_EDO, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=NOM_EDO, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Actividad Laboral de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por actividad laboral (miles)")  +facet_grid(ACTIVIDAD_PAREJA~.,scales = "free_y")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1))
+```
+
+
+
+```{r ActividadLaboral-Mapa}
+Actividad<-matrimonios %>% 
+  mutate(ACTIVIDAD_PAREJA = case_when(
+    CONACTCON1 == 1 & CONACTCON2 == 1 ~ "Trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 1 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 1 & CONACTCON2 == 2 ~ "No trabaja-Trabaja",
+    CONACTCON1 == 2 & CONACTCON2 == 2 ~ "No trabaja-No trabaja",
+    TRUE ~ "Otro")) %>%
+  group_by(ENT_REGIS,ACTIVIDAD_PAREJA) %>%
+  summarise(Conteo = n()) %>%
+  filter(Conteo==max(Conteo)) %>%
+  arrange(ENT_REGIS) 
+
+
+df_mxstate$value<-as.factor(Actividad$ACTIVIDAD_PAREJA)
+
+gg = MXStateChoropleth$new(df_mxstate)
+gg$title <- "Actividad Laboral más frecuente por Estado"
+gg$set_num_colors(2)
+gg$ggplot_scale <- scale_fill_brewer("Actividad Laboral", type = "qual")
+p <- gg$render()
+p + theme_void()
+```
+
+## Escolaridad
+
+```{r escolaridad}
+
+Escolaridad<-matrimonios %>% mutate(ESCOL2_CON1 = 
+           case_when(ESCOL_CON1 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON1 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON1 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON1 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOL2_CON2 = 
+           case_when(ESCOL_CON2 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON2 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON2 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON2 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOLARIDAD_PAREJA= case_when(ESCOL2_CON1 == 1 & ESCOL2_CON2==1 ~ "Sin escolaridad-sin_escolaridad",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==2 ~ "Sin escolaridad-básica",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==3 ~ "Sin escolaridad-media superior",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==4 ~ "Sin escolaridad-superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==1 ~ "básica-sin_escolaridad",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==2 ~ "básica-básica",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==3 ~ "básica-media superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==4 ~ "básica-superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==1 ~ "media superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==2 ~ "media superior-básica",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==3 ~ "media superior-media superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==4 ~ "media superior-superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==1 ~ "superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==2 ~ "superior-básica",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==3 ~ "superior-media superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==4 ~ "superior-superior",
+                                       TRUE ~ "other")) %>%
+  group_by(ESCOLARIDAD_PAREJA) %>% 
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(matrimonios))
+        
+Escolaridad
+```
+
+
+```{r Escolaridad}
+
+Escolaridad <- cbind(
+  Escolaridad,
+  sum(Escolaridad$Conteo)*MultinomCI(Escolaridad$Conteo,
+                                          conf.level = 0.95))
+  
+
+MuestraEscolaridad<-muestra %>% mutate(ESCOL2_CON1 = 
+           case_when(ESCOL_CON1 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON1 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON1 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON1 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOL2_CON2 = 
+           case_when(ESCOL_CON2 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON2 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON2 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON2 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOLARIDAD_PAREJA= case_when(ESCOL2_CON1 == 1 & ESCOL2_CON2==1 ~ "Sin escolaridad-sin_escolaridad",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==2 ~ "Sin escolaridad-básica",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==3 ~ "Sin escolaridad-media superior",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==4 ~ "Sin escolaridad-superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==1 ~ "básica-sin_escolaridad",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==2 ~ "básica-básica",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==3 ~ "básica-media superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==4 ~ "básica-superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==1 ~ "media superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==2 ~ "media superior-básica",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==3 ~ "media superior-media superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==4 ~ "media superior-superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==1 ~ "superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==2 ~ "superior-básica",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==3 ~ "superior-media superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==4 ~ "superior-superior",
+                                       TRUE ~ "other")) %>%
+  group_by(ESCOLARIDAD_PAREJA) %>% 
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(muestra))
+
+MuestraEscolaridad <- cbind(
+  MuestraEscolaridad,
+  sum(MuestraEscolaridad$Conteo)*MultinomCI(MuestraEscolaridad$Conteo,
+                                          conf.level = 0.95))
+```
+
+```{r Escolaridad-Graficas}
+ggplot(Escolaridad,
+       aes(x=reorder(ESCOLARIDAD_PAREJA,-Proporción),
+           y=Proporción)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() + 
+  labs(title ="Proporción de escolaridad de la pareja contrayente",
+       x = "Actividad",
+       y= "Proporción")+ 
   theme(axis.text=element_text(size=8),
         axis.text.x = element_text(
     angle=90, hjust = 1),
         legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
 ```
 
-### Estimación puntual
 
-### Estimaciones 95% confianza
-
-## Escolaridad contrayentes
-```{r}
-Escolaridad<-list()
-Escolaridad[[1]]="Sin escolaridad"
-Escolaridad[[2]]="De 1 a 3 años de primaria"
-Escolaridad[[3]]="De 4 a 5 años de primaria"
-Escolaridad[[4]]="Primaria completa"
-Escolaridad[[5]]="Secundaria o equivalente"
-Escolaridad[[6]]="Preparatoria o equivalente"
-Escolaridad[[7]]="Profesional"
-Escolaridad[[8]]="Otra"
-Escolaridad[[9]]="No especificada"
-
-matrimonios$Escolaridad1<-unlist(Escolaridad[matrimonios$ESCOL_CON1])
-matrimonios$Escolaridad2<-unlist(Escolaridad[matrimonios$ESCOL_CON2])
-
-contrayente1<-matrimonios[,c("SEXO_CON1","Escolaridad1","ENTRH_CON1")]
-colnames(contrayente1)<-c("SEXO","Escolaridad","Entidad")
-contrayente2<-matrimonios[,c("SEXO_CON2","Escolaridad2","ENTRH_CON2")]
-colnames(contrayente2)<-c("SEXO","Escolaridad","Entidad")
-
-EscolaridadContrayentes<-rbind(contrayente1,contrayente2)
-```
-
-
-### Dato real
-
-```{r}
-EscolaridadFrac<-EscolaridadContrayentes%>%
-  group_by(Escolaridad)%>%
-  summarise(Porcentaje=100*n()/nrow(EscolaridadContrayentes))
-```
-
-```{r}
-ggplot(EscolaridadFrac,aes(x=reorder(Escolaridad,-Porcentaje),y=Porcentaje))+
-  geom_bar(stat = "identity")+
-  theme_minimal()+ 
-  labs(title ="Porcentaje del nivel de escolaridad",
-       x = "Nivel de escolaridad",
-       y= "Porcentaje")+ 
+```{r Escolaridad-Intervalo-Confianza}
+ggplot(Escolaridad) +
+  geom_bar(aes(x = reorder(ESCOLARIDAD_PAREJA,-est), y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=ESCOLARIDAD_PAREJA, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=ESCOLARIDAD_PAREJA, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Escolaridad de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por Escolaridad (miles)") + 
   theme(axis.text=element_text(size=8),
         axis.text.x = element_text(
-    angle=90, hjust = 1),
-        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+    angle=90, hjust = 1))
 ```
-
-
-
-### Estimación puntual
-
-### Estimaciones 95% confianza
 
 ## Escolaridad contrayentes por entidad federativa
-### Dato real
-```{r}
-EscolaridadEnt<-EscolaridadContrayentes%>%group_by(Entidad,Escolaridad)%>%summarise(Elementos=n()) %>% group_by(Entidad)%>%mutate(Porcentaje=100*Elementos/sum(Elementos))
+
+```{r escolaridad_entidad}
+EscolaridadEntidad<-matrimonios %>% mutate(ESCOL2_CON1 = 
+           case_when(ESCOL_CON1 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON1 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON1 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON1 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOL2_CON2 = 
+           case_when(ESCOL_CON2 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON2 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON2 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON2 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOLARIDAD_PAREJA= case_when(ESCOL2_CON1 == 1 & ESCOL2_CON2==1 ~ "Sin escolaridad-sin_escolaridad",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==2 ~ "Sin escolaridad-básica",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==3 ~ "Sin escolaridad-media superior",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==4 ~ "Sin escolaridad-superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==1 ~ "básica-sin_escolaridad",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==2 ~ "básica-básica",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==3 ~ "básica-media superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==4 ~ "básica-superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==1 ~ "media superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==2 ~ "media superior-básica",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==3 ~ "media superior-media superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==4 ~ "media superior-superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==1 ~ "superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==2 ~ "superior-básica",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==3 ~ "superior-media superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==4 ~ "superior-superior",
+                                       TRUE ~ "other")) %>%
+  group_by(NOM_EDO,ESCOLARIDAD_PAREJA) %>% 
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(matrimonios))
+
+
+EstimacionesEscolaridadEntidades<-as_tibble(do.call(rbind,EscolaridadEntidad %>% group_by(NOM_EDO) %>%group_map(~sum(.x$Conteo)*MultinomCI(.x$Conteo,conf.level = 0.95))))
+
+colnames(EstimacionesEscolaridadEntidades)<-c("est", "lwr.ci","upr.ci")
+
+
+EscolaridadEntidad <- bind_cols(
+  EscolaridadEntidad,
+  EstimacionesEscolaridadEntidades
+  )
+
+
+EscolaridadEntidad
 ```
 
-```{r}
-ggplot(EscolaridadEnt,aes(x=reorder(Escolaridad,-Porcentaje),y=Porcentaje,color=Entidad))+
-  geom_bar(stat = "identity",position = "dodge")+
-  theme_minimal()+ 
-  labs(title ="Porcentaje de nivel de Escolaridad por Estado",
-       x = "Escolaridad",
-       y= "Porcentaje")+ 
+```{r MuestraEscolaridadEntidades}
+MuestraEscolaridadEntidad<-muestra %>% mutate(ESCOL2_CON1 = 
+           case_when(ESCOL_CON1 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON1 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON1 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON1 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOL2_CON2 = 
+           case_when(ESCOL_CON2 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON2 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON2 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON2 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOLARIDAD_PAREJA= case_when(ESCOL2_CON1 == 1 & ESCOL2_CON2==1 ~ "Sin escolaridad-sin_escolaridad",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==2 ~ "Sin escolaridad-básica",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==3 ~ "Sin escolaridad-media superior",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==4 ~ "Sin escolaridad-superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==1 ~ "básica-sin_escolaridad",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==2 ~ "básica-básica",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==3 ~ "básica-media superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==4 ~ "básica-superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==1 ~ "media superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==2 ~ "media superior-básica",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==3 ~ "media superior-media superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==4 ~ "media superior-superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==1 ~ "superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==2 ~ "superior-básica",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==3 ~ "superior-media superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==4 ~ "superior-superior",
+                                       TRUE ~ "other")) %>%
+  group_by(NOM_EDO,ESCOLARIDAD_PAREJA) %>% 
+  summarise(Conteo = n(),
+            Proporción = n() / nrow(matrimonios))
+
+
+
+MuestraEstimacionesEscolaridadEntidades<-as_tibble(do.call(rbind,MuestraEscolaridadEntidad %>% group_by(NOM_EDO) %>%group_map(~sum(.x$Conteo)*MultinomCI(.x$Conteo,conf.level = 0.95))))
+
+colnames(MuestraEstimacionesEscolaridadEntidades)<-c("est", "lwr.ci","upr.ci")
+
+
+MuestraEscolaridadEntidad <- bind_cols(
+  MuestraEscolaridadEntidad,
+  MuestraEstimacionesEscolaridadEntidades
+  )
+
+
+```
+
+
+```{r EscolaridadEntidad-Graficas}
+subset(EscolaridadEntidad,ESCOLARIDAD_PAREJA%in%c("básica-básica","media superior-media superior","superior-superior")) %>%
+ggplot() +
+  geom_bar(aes(x = NOM_EDO, y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=NOM_EDO, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=NOM_EDO, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Escolaridad de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por Escolaridad (miles)")  +facet_grid(ESCOLARIDAD_PAREJA~.,scales = "free_y")+ 
   theme(axis.text=element_text(size=8),
         axis.text.x = element_text(
-    angle=90, hjust = 1),
-        legend.position = "none")+scale_x_discrete(labels = function(x) str_wrap(x, width = 30))
+    angle=90, hjust = 1))
+
 ```
 
-### Estimación puntual
 
-### Estimaciones 95% confianza
+
+```{r EscolaridadMuestra-Graficas}
+subset(MuestraEscolaridadEntidad,ESCOLARIDAD_PAREJA%in%c("básica-básica","media superior-media superior","superior-superior")) %>%
+ggplot() +
+  geom_bar(aes(x = NOM_EDO, y=est/1000), stat="identity", fill="skyblue",alpha=0.7) +
+  geom_errorbar(aes(x=NOM_EDO, ymin=lwr.ci/1000, ymax=upr.ci/1000), width=0.4, colour= "orange", alpha = 0.7, size=1) + 
+  geom_point(aes(x=NOM_EDO, y=Conteo/1000), size = 3, colour = "black") + 
+  labs (x = "Escolaridad de la pareja", y = "Total de matrimonios",title = "Total de matrimonios por escolaridad (miles)")  +facet_grid(ESCOLARIDAD_PAREJA~.,scales = "free_y")+ 
+  theme(axis.text=element_text(size=8),
+        axis.text.x = element_text(
+    angle=90, hjust = 1))
+```
+
+
+
+```{r Escolaridad-Mapa}
+Actividad<-matrimonios %>% mutate(ESCOL2_CON1 = 
+           case_when(ESCOL_CON1 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON1 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON1 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON1 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON1 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON1 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOL2_CON2 = 
+           case_when(ESCOL_CON2 == 1 ~ 1,#,"sin escolaridad",
+                     ESCOL_CON2 == 2 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 3 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 4 ~ 2,#"escolaridad básica",
+                     ESCOL_CON2 == 5 ~ 3,#"escolaridad media superior",
+                     ESCOL_CON2 == 6 ~ 3,#"escolaridad media superior"
+                     ESCOL_CON2 == 7 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 8 ~ 4,#"escolaridad superior",
+                     ESCOL_CON2 == 9 ~ 9,#"no especificado",
+                     TRUE ~ NA_real_)) %>%
+  mutate(ESCOLARIDAD_PAREJA= case_when(ESCOL2_CON1 == 1 & ESCOL2_CON2==1 ~ "Sin escolaridad-sin_escolaridad",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==2 ~ "Sin escolaridad-básica",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==3 ~ "Sin escolaridad-media superior",
+                                       ESCOL2_CON1 == 1 & ESCOL2_CON2==4 ~ "Sin escolaridad-superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==1 ~ "básica-sin_escolaridad",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==2 ~ "básica-básica",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==3 ~ "básica-media superior",
+                                       ESCOL2_CON1 == 2 & ESCOL2_CON2==4 ~ "básica-superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==1 ~ "media superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==2 ~ "media superior-básica",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==3 ~ "media superior-media superior",
+                                       ESCOL2_CON1 == 3 & ESCOL2_CON2==4 ~ "media superior-superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==1 ~ "superior-sin_escolaridad",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==2 ~ "superior-básica",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==3 ~ "superior-media superior",
+                                       ESCOL2_CON1 == 4 & ESCOL2_CON2==4 ~ "superior-superior",
+                                       TRUE ~ "other")) %>%
+  group_by(ENT_REGIS,ESCOLARIDAD_PAREJA) %>%
+  summarise(Conteo = n()) %>%
+  filter(Conteo==max(Conteo)) %>%
+  arrange(ENT_REGIS) 
+
+
+df_mxstate$value<-as.factor(Actividad$ESCOLARIDAD_PAREJA)
+
+gg = MXStateChoropleth$new(df_mxstate)
+gg$title <- "Escolaridad más frecuente por Estado"
+gg$set_num_colors(2)
+gg$ggplot_scale <- scale_fill_brewer("Escolaridad", type = "qual")
+p <- gg$render()
+p + theme_void()
+```
+
+### Conclusiones
+
+Se observa que la actividad económica de los contrayentes hay dos categorías que predominan en las proporciones: donde los dos trabajan y donde uno de los dos no trabaja. Se obseva una tendencia de la proporción con respecto a los estados de la república. 
+
+Respecto a la Escolaridad, la gran mayoría (40.49%) de los matrimonios tiene educación media superior. Solamente el estado de Nayarit presenta una proporción más alta de matrimonios con educación superior para ambor contrayentes.
+
